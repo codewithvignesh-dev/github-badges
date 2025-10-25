@@ -33,13 +33,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const views = data.count || 0
   const uniques = data.uniques || 0
 
-  // Simple SVG badge
+// Badge layout adjustments
+  const labelWidth = Math.max(60, label.length * 7)
+  const valueWidth = 50
+  const totalWidth = labelWidth + valueWidth
+
+  // ✅ GitHub blue color in 3-digit hex (#036)
   const svg = `
-<svg xmlns="http://www.w3.org/2000/svg" width="150" height="20">
-  <rect width="150" height="20" fill="#555"/>
-  <rect x="70" width="80" height="20" fill="#09D"/>
-  <text x="5" y="14" fill="#fff" font-size="11" font-family="Verdana">${label}</text>
-  <text x="75" y="14" fill="#fff" font-size="11" font-family="Verdana">${views}</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="${totalWidth}" height="20">
+  <rect width="${labelWidth}" height="20" fill="#555"/>
+  <rect x="${labelWidth}" width="${valueWidth}" height="20" fill="#036"/>
+  <text x="10" y="14" fill="#fff" font-size="11" font-family="Verdana">${label}</text>
+  <text x="${labelWidth + 10}" y="14" fill="#fff" font-size="11" font-family="Verdana">${views}</text>
 </svg>`
 
   res.setHeader('Content-Type', 'image/svg+xml')
