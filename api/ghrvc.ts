@@ -36,7 +36,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const svg = `
 <svg xmlns="http://www.w3.org/2000/svg" width="150" height="20">
   <rect width="150" height="20" fill="#555"/>
-  <rect x="70" width="80" height="20" fill="#4c1"/>
+  <rect x="70" width="80" height="20" fill="#09D"/>
   <text x="5" y="14" fill="#fff" font-size="11" font-family="Verdana">views</text>
   <text x="75" y="14" fill="#fff" font-size="11" font-family="Verdana">${views}</text>
 </svg>`
