@@ -1,6 +1,9 @@
 {
-  "version": 3,
+  "version": 2,
+  "builds": [
+    { "src": "api/ghrvc.ts", "use": "@vercel/node" }
+  ],
   "routes": [
-    { "src": "/ghrvc", "dest": "/api/ghrvc" }
+    { "src": "/ghrvc", "dest": "/api/ghrvc.ts" }
   ]
 }
