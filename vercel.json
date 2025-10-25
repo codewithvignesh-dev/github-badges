@@ -1,5 +1,5 @@
 {
-  "version": 4,
+  "version": 1,
   "functions": {
     "ghrvc.ts": {
       "runtime": "@vercel/node@3"
