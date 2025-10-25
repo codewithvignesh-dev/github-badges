@@ -3,7 +3,7 @@ import { VercelRequest, VercelResponse } from '@vercel/node'
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const user = (req.query.user as string)?.trim()
   const repo = (req.query.repo as string)?.trim()
-  const label = (req.query.repo as string)?.trim()
+  const label = (req.query.label as string)?.trim()
 
   if (!user || !repo || !label) {
     res.status(400).send('Usage: /ghrvc?user=<username>&repo=<repository>&label=Repository Views')
