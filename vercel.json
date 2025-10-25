@@ -1,11 +1,6 @@
 {
-  "version": 1,
-  "functions": {
-    "ghrvc.ts": {
-      "runtime": "@vercel/node@3"
-    }
-  },
+  "version": 3,
   "routes": [
-    { "src": "/ghrvc", "dest": "/ghrvc.ts" }
+    { "src": "/ghrvc", "dest": "/api/ghrvc" }
   ]
 }
