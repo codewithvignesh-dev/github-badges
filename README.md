@@ -1,2 +1,6 @@
 # Repo-View-Count
-![Repo Views](https://devai.github.io/my-views-badge/badges/bgmi_boost.svg)
+---
+
+<p align="center">
+  <img src="https://repoviewcount.vercel.app/api/badge?user=codewithvignesh-dev&repo=Repo-View-Count" />
+</p>
