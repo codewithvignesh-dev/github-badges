@@ -2,5 +2,5 @@
 ---
 
 <p align="center">
-  <img src="https://repoviewcount.vercel.app/api/badge?user=codewithvignesh-dev&repo=Repo-View-Count" />
+  <img src="https://repo-view-count.vercel.app/ghrvc?user=codewithvignesh-dev&repo=Repo-View-Count" />
 </p>
