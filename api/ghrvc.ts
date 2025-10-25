@@ -3,9 +3,10 @@ import { VercelRequest, VercelResponse } from '@vercel/node'
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const user = (req.query.user as string)?.trim()
   const repo = (req.query.repo as string)?.trim()
+  const label = (req.query.repo as string)?.trim()
 
-  if (!user || !repo) {
-    res.status(400).send('Usage: /api/badge?user=<username>&repo=<repository>')
+  if (!user || !repo || !label) {
+    res.status(400).send('Usage: /ghrvc?user=<username>&repo=<repository>&label=Repository Views')
     return
   }
 
@@ -37,7 +38,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 <svg xmlns="http://www.w3.org/2000/svg" width="150" height="20">
   <rect width="150" height="20" fill="#555"/>
   <rect x="70" width="80" height="20" fill="#09D"/>
-  <text x="5" y="14" fill="#fff" font-size="11" font-family="Verdana">views</text>
+  <text x="5" y="14" fill="#fff" font-size="11" font-family="Verdana">${label)</text>
   <text x="75" y="14" fill="#fff" font-size="11" font-family="Verdana">${views}</text>
 </svg>`
 
