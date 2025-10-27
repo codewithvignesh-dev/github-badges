@@ -16,6 +16,10 @@
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.2"
   },
+  "scripts": {
+    "build": "tsc",
+    "vercel-build": "tsc"
+  },
   "engines": {
     "node": ">=18"
   }
