@@ -62,7 +62,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   </mask>
   <g mask="url(#a)">
     <rect width="${labelWidth}" height="20" fill="#555"/>
-    <rect x="${labelWidth}" width="${valueWidth}" height="20" fill="#007ec6"/>
+    <rect x="${labelWidth}" width="${valueWidth}" height="20" fill="#8957e5"/>
     <rect width="${totalWidth}" height="20" fill="url(#b)"/>
   </g>
   <g fill="#fff" text-anchor="middle" font-family="DejaVu Sans,Verdana,Geneva,sans-serif" font-size="11">
