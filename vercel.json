@@ -1,15 +1,15 @@
 {
   "version": 2,
   "builds": [
-    { "src": "next.config.js", "use": "@vercel/next" },
+    { "src": "next.config.cjs", "use": "@vercel/next" },
     { "src": "api/*.ts", "use": "@vercel/node" }
   ],
   "routes": [
-    { "src": "/ghrvc", "dest": "/api/ghrvc.ts" },
-    { "src": "/ghpvc", "dest": "/api/ghpvc.ts" },
-    { "src": "/ghflwcnt", "dest": "/api/ghflwcnt.ts" },
-    { "src": "/ghfc", "dest": "/api/ghfc.ts" },
-    { "src": "/ghsc", "dest": "/api/ghsc.ts" },
+    { "src": "^/ghrvc$", "dest": "/api/ghrvc.ts" },
+    { "src": "^/ghpvc$", "dest": "/api/ghpvc.ts" },
+    { "src": "^/ghflwcnt$", "dest": "/api/ghflwcnt.ts" },
+    { "src": "^/ghfc$", "dest": "/api/ghfc.ts" },
+    { "src": "^/ghsc$", "dest": "/api/ghsc.ts" },
     { "src": "/(.*)", "dest": "/$1" }
   ]
 }
