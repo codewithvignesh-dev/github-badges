@@ -1,6 +1,5 @@
+import { kv } from '@vercel/kv'
 import { VercelRequest, VercelResponse } from '@vercel/node'
-
-let views = 0 // resets after redeploy
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const user = (req.query.user as string)?.trim()
@@ -11,7 +10,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return
   }
 
-  views += 1
+  // increment persistent counter
+  const key = `ghpvc:${user}`
+  const views = await kv.incr(key)
 
   const labelWidth = Math.max(80, label.length * 7.2)
   const valueText = views.toLocaleString()
