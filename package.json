@@ -1,9 +1,10 @@
 {
-  "name": "repo-view-count",
+  "name": "github-badges",
   "version": "1.0.0",
   "type": "module",
   "dependencies": {
-    "@vercel/node": "^3.0.0"
+    "@vercel/node": "^3.0.0",
+    "@vercel/kv": "^1.0.0"
   },
   "engines": {
     "node": ">=18"
