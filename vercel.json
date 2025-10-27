@@ -10,6 +10,6 @@
     { "src": "/ghflwcnt", "dest": "/api/ghflwcnt.ts" },
     { "src": "/ghfc", "dest": "/api/ghfc.ts" },
     { "src": "/ghsc", "dest": "/api/ghsc.ts" },
-    { "src": "/.*", "dest": "/" }
+    { "src": "/.*", "dest": "/pages/*.tsx" }
   ]
 }
