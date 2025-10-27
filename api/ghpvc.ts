@@ -5,7 +5,7 @@ const supabaseUrl = process.env.gh_SUPABASE_URL!
 const supabaseKey = process.env.gh_SUPABASE_ANON_KEY!
 const supabase = createClient(supabaseUrl, supabaseKey)
 
-module.exports = async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: VercelRequest, res: VercelResponse) {
   const user = (req.query.user as string)?.trim()
   const label = (req.query.label as string)?.trim() || 'Profile Views'
 

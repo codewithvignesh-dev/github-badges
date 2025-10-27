@@ -9,10 +9,6 @@
   "devDependencies": {
     "typescript": "^5.6.3"
   },
-  "scripts": {
-    "build": "tsc",
-    "vercel-build": "tsc"
-  },
   "engines": {
     "node": ">=18"
   }
