@@ -1,9 +1,17 @@
 {
   "version": 2,
   "builds": [
-    { "src": "api/ghrvc.ts", "use": "@vercel/node" }
+    { "src": "api/ghrvc.ts", "use": "@vercel/node" },
+    { "src": "api/ghpvc.ts", "use": "@vercel/node" },
+    { "src": "api/ghfc.ts", "use": "@vercel/node" },
+    { "src": "api/ghsc.ts", "use": "@vercel/node" },
+    { "src": "api/ghflwcnt.ts", "use": "@vercel/node" }
   ],
   "routes": [
-    { "src": "/ghrvc", "dest": "/api/ghrvc.ts" }
+    { "src": "/ghrvc", "dest": "/api/ghrvc.ts" },
+    { "src": "/ghpvc", "dest": "/api/ghpvc.ts" },
+    { "src": "/ghfc", "dest": "/api/ghfc.ts" },
+    { "src": "/ghsc", "dest": "/api/ghsc.ts" },
+    { "src": "/ghflwcnt", "dest": "/api/ghflwcnt.ts" }
   ]
 }
