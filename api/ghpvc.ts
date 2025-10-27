@@ -2,8 +2,8 @@ import { VercelRequest, VercelResponse } from '@vercel/node'
 import { createClient } from '@supabase/supabase-js'
 
 const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_KEY!
+  process.env.gh_SUPABASE_URL!,
+  process.env.gh_SUPABASE_KEY!
 )
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
