@@ -14,7 +14,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return
   }
 
-  // Get current count
+  // Get or increment the counter
   const { data, error } = await supabase
     .from('profile_views')
     .select('count')
@@ -24,7 +24,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   let views = 0
 
   if (error && error.code === 'PGRST116') {
-    // No record found, insert new one
+    // No record found — insert a new one
     const { data: inserted } = await supabase
       .from('profile_views')
       .insert({ username: user, count: 1 })
@@ -76,49 +76,5 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   res.setHeader('Content-Type', 'image/svg+xml')
   res.setHeader('Cache-Control', 'no-cache')
-  res.status(200).send(svg)
-}
-      .from('profile_views')
-      .update({ count: data.count + 1 })
-      .eq('username', user)
-      .select('count')
-      .single()
-    views = updated?.count || data.count + 1
-  }
-
-  // --- Badge layout ---
-  const labelText = label
-  const valueText = views.toLocaleString()
-  const labelWidth = Math.max(60, labelText.length * 7.2)
-  const valueWidth = Math.max(40, valueText.length * 7.2)
-  const totalWidth = labelWidth + valueWidth
-
-  const svg = `
-<svg xmlns="http://www.w3.org/2000/svg" width="${totalWidth}" height="20">
-  <linearGradient id="b" x2="0" y2="100%">
-    <stop offset="0" stop-color="#bbb" stop-opacity=".1"/>
-    <stop offset="1" stop-opacity=".1"/>
-  </linearGradient>
-  <mask id="a"><rect width="${totalWidth}" height="20" rx="3" fill="#fff"/></mask>
-  <g mask="url(#a)">
-    <rect width="${labelWidth}" height="20" fill="#555"/>
-    <rect x="${labelWidth}" width="${valueWidth}" height="20" fill="#007ec6"/>
-    <rect width="${totalWidth}" height="20" fill="url(#b)"/>
-  </g>
-  <g fill="#fff" text-anchor="middle" font-family="DejaVu Sans,Verdana,Geneva,sans-serif" font-size="11">
-    <text x="${labelWidth / 2}" y="15" fill="#010101" fill-opacity=".3">${labelText}</text>
-    <text x="${labelWidth / 2}" y="14">${labelText}</text>
-    <text x="${labelWidth + valueWidth / 2}" y="15" fill="#010101" fill-opacity=".3">${valueText}</text>
-    <text x="${labelWidth + valueWidth / 2}" y="14">${valueText}</text>
-  </g>
-</svg>`
-
-  res.setHeader('Content-Type', 'image/svg+xml')
-  res.setHeader('Cache-Control', 'no-cache')
-  res.status(200).send(svg)
-}
-</svg>`
-
-  res.setHeader('Content-Type', 'image/svg+xml')
   res.status(200).send(svg)
 }
