@@ -23,14 +23,14 @@
 
 ### Followers Count
 <p align="center">
-  <img src="https://gh-badges.vercel.app/ghpvc?user=codewithvignesh-dev&label=Profile%20Views" />
+  <img src="https://gh-badges.vercel.app/ghflwcnt?user=codewithvignesh-dev&label=Followers" />
 </p>
 
 ---
 
 ### Fork Count
 <p align="center">
-  <img src="https://gh-badges.vercel.app/ghpvc?user=codewithvignesh-dev&label=Profile%20Views" />
+  <img src="https://gh-badges.vercel.app/ghfc?user=codewithvignesh-dev&repo=github-badges&label=Forks" />
 </p>
 
 ---
