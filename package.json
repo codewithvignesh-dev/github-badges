@@ -4,7 +4,7 @@
   "type": "module",
   "dependencies": {
     "@vercel/node": "^3.0.0",
-    "@vercel/kv": "^1.0.0"
+    "@supabase/supabase-js": "^2.44.0"
   },
   "engines": {
     "node": ">=18"
