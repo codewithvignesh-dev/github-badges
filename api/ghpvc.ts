@@ -1,21 +1,49 @@
-import { kv } from '@vercel/kv'
 import { VercelRequest, VercelResponse } from '@vercel/node'
+import { createClient } from '@supabase/supabase-js'
+
+const supabase = createClient(
+  process.env.SUPABASE_URL!,
+  process.env.SUPABASE_KEY!
+)
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const user = (req.query.user as string)?.trim()
   const label = (req.query.label as string)?.trim() || 'Profile Views'
 
   if (!user) {
-    res.status(400).send('Usage: /ghprofileviews?user=<username>&label=Profile Views')
+    res.status(400).send('Usage: /ghpvc?user=<username>&label=Profile Views')
     return
   }
 
-  // increment persistent counter
-  const key = `ghpvc:${user}`
-  const views = await kv.incr(key)
+  // Get or create user row
+  const { data, error } = await supabase
+    .from('profile_views')
+    .select('count')
+    .eq('username', user)
+    .maybeSingle()
 
+  if (error) {
+    console.error(error)
+    res.status(500).send('Database error: ' + error.message)
+    return
+  }
+
+  let newCount = (data?.count ?? 0) + 1
+
+  // Upsert count
+  const { error: upsertError } = await supabase
+    .from('profile_views')
+    .upsert({ username: user, count: newCount })
+
+  if (upsertError) {
+    console.error(upsertError)
+    res.status(500).send('Update error: ' + upsertError.message)
+    return
+  }
+
+  // --- SVG Badge ---
   const labelWidth = Math.max(80, label.length * 7.2)
-  const valueText = views.toLocaleString()
+  const valueText = newCount.toLocaleString()
   const valueWidth = Math.max(40, valueText.length * 7.2)
   const totalWidth = labelWidth + valueWidth
 
