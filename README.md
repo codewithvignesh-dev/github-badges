@@ -5,6 +5,11 @@
   <img src="https://gh-badges.vercel.app/ghrvc?user=codewithvignesh-dev&repo=github-badges&label=Repository%20Views" />
 </p>
 
+### Repository View Count Badge
+<p align="center">
+  <img src="https://gh-badges.vercel.app/ghrvc?user=Mukesh23012000&repo=react-validator-dev&label=Repository%20Views" />
+</p>
+
 ---
 
 ### Profile View Count Badge
