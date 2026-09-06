@@ -69,7 +69,6 @@ export default async function handler(
             'tg-darkespyt',
             'Vigneshwaran',
             'Vigneshwaran P',
-            'Ubuntu',
             'codewithvignesh-dev'
         ])
 
