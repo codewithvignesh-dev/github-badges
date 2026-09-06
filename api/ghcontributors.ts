@@ -1,4 +1,3 @@
-```ts
 import { VercelRequest, VercelResponse } from '@vercel/node'
 
 export default async function handler(
@@ -30,7 +29,7 @@ export default async function handler(
     const headers = {
         Accept: 'application/vnd.github+json',
         Authorization: `Bearer ${ghToken}`,
-        'X-GitHub-Api-Version': '2026-03-10',
+        'X-GitHub-Api-Version': '2026-03-10'
     }
 
     const escapeXml = (value: unknown) =>
@@ -71,12 +70,12 @@ export default async function handler(
             'Vigneshwaran',
             'Vigneshwaran P',
             'Ubuntu',
-            'codewithvignesh-dev',
+            'codewithvignesh-dev'
         ])
 
         const mergedContributors = new Map<string, any>()
 
-        contributors.forEach((contributor: any) => {
+        for (const contributor of contributors) {
             const identity =
                 contributor.login ||
                 contributor.name ||
@@ -101,6 +100,7 @@ export default async function handler(
             } else {
                 mergedContributors.set(displayName, {
                     login: displayName,
+                    contributions,
                     avatar:
                         isMyIdentity
                             ? 'https://github.com/codewithvignesh-dev.png?size=128'
@@ -108,11 +108,10 @@ export default async function handler(
                     url:
                         isMyIdentity
                             ? 'https://github.com/codewithvignesh-dev'
-                            : contributor.html_url || '#',
-                    contributions,
+                            : contributor.html_url || '#'
                 })
             }
-        })
+        }
 
         const mergedData =
             Array.from(mergedContributors.values())
@@ -129,66 +128,63 @@ export default async function handler(
                 0
             )
 
-        if (total === 0) {
+        if (total <= 0) {
             res.status(404).send(
                 'No contribution data found'
             )
             return
         }
 
-        const MAX_CONTRIBUTORS = 7
-
-        const visibleContributors =
-            mergedData.slice(0, MAX_CONTRIBUTORS)
+        const topContributors =
+            mergedData.slice(0, 3)
 
         const data =
-            visibleContributors.map(
+            topContributors.map(
                 (contributor: any) => ({
                     ...contributor,
                     percentage:
-                        (contributor.contributions / total) * 100,
+                        contributor.contributions /
+                        total *
+                        100
                 })
             )
 
-        if (mergedData.length > MAX_CONTRIBUTORS) {
-            const visibleTotal =
-                visibleContributors.reduce(
-                    (sum: number, contributor: any) =>
-                        sum + contributor.contributions,
-                    0
-                )
-
+        if (mergedData.length > 3) {
             const othersContributions =
-                total - visibleTotal
+                mergedData
+                    .slice(3)
+                    .reduce(
+                        (sum: number, contributor: any) =>
+                            sum + contributor.contributions,
+                        0
+                    )
 
             data.push({
                 login: 'Others',
-                avatar: '',
-                url: '#',
                 contributions: othersContributions,
                 percentage:
-                    (othersContributions / total) * 100,
+                    othersContributions /
+                    total *
+                    100,
+                avatar: '',
+                url: '#'
             })
         }
 
         const width = 900
         const height = 560
 
-        const colors = [
+        const chartColors = [
             '#0ea5ff',
             '#a855f7',
             '#22c55e',
-            '#f59e0b',
-            '#ef4444',
-            '#06b6d4',
-            '#ec4899',
-            '#64748b',
+            '#f59e0b'
         ]
 
         const chartX = 205
         const chartY = 315
         const radius = 145
-        const innerRadius = 91
+        const innerRadius = 90
 
         const polarToCartesian = (
             centerX: number,
@@ -196,82 +192,117 @@ export default async function handler(
             radius: number,
             angle: number
         ) => {
-            const angleInRadians =
-                (angle - 90) * Math.PI / 180
+            const radians =
+                (angle - 90) *
+                Math.PI /
+                180
 
             return {
                 x:
                     centerX +
-                    radius * Math.cos(angleInRadians),
+                    radius *
+                    Math.cos(radians),
                 y:
                     centerY +
-                    radius * Math.sin(angleInRadians),
+                    radius *
+                    Math.sin(radians)
             }
         }
 
-        const describeArc = (
-            centerX: number,
-            centerY: number,
-            radius: number,
+        const createSlice = (
             startAngle: number,
-            endAngle: number
+            endAngle: number,
+            color: string
         ) => {
             const start =
                 polarToCartesian(
-                    centerX,
-                    centerY,
+                    chartX,
+                    chartY,
                     radius,
                     endAngle
                 )
 
             const end =
                 polarToCartesian(
-                    centerX,
-                    centerY,
+                    chartX,
+                    chartY,
                     radius,
                     startAngle
                 )
 
-            const largeArcFlag =
-                endAngle - startAngle <= 180
-                    ? '0'
-                    : '1'
+            const largeArc =
+                endAngle - startAngle > 180
+                    ? '1'
+                    : '0'
 
-            return [
-                `M ${centerX} ${centerY}`,
-                `L ${start.x} ${start.y}`,
-                `A ${radius} ${radius} 0 ${largeArcFlag} 0 ${end.x} ${end.y}`,
-                'Z',
-            ].join(' ')
+            const path =
+                [
+                    `M ${chartX} ${chartY}`,
+                    `L ${start.x} ${start.y}`,
+                    `A ${radius} ${radius} 0 ${largeArc} 0 ${end.x} ${end.y}`,
+                    'Z'
+                ].join(' ')
+
+            return `
+<path
+    d="${path}"
+    fill="${color}"
+    stroke="#071326"
+    stroke-width="4"
+>
+    <title>${escapeXml(data[data.findIndex((item: any) => item.percentage * 3.6 === endAngle - startAngle)]?.login || '')}</title>
+</path>`
         }
 
         let currentAngle = 0
+        let slices = ''
 
-        const slices = data
-            .map((contributor: any, index: number) => {
-                const startAngle = currentAngle
+        data.forEach((contributor: any, index: number) => {
+            const startAngle = currentAngle
+            const sliceAngle =
+                contributor.percentage * 3.6
 
-                const sliceAngle =
-                    contributor.percentage * 3.6
+            const endAngle =
+                startAngle + sliceAngle
 
-                const endAngle =
-                    currentAngle + sliceAngle
+            currentAngle = endAngle
 
-                currentAngle = endAngle
+            const color =
+                chartColors[
+                    index %
+                    chartColors.length
+                ]
 
-                const path =
-                    describeArc(
-                        chartX,
-                        chartY,
-                        radius,
-                        startAngle,
-                        endAngle
-                    )
+            const start =
+                polarToCartesian(
+                    chartX,
+                    chartY,
+                    radius,
+                    endAngle
+                )
 
-                const color =
-                    colors[index % colors.length]
+            const end =
+                polarToCartesian(
+                    chartX,
+                    chartY,
+                    radius,
+                    startAngle
+                )
 
-                return `
+            const largeArc =
+                sliceAngle > 180
+                    ? '1'
+                    : '0'
+
+            const path =
+                [
+                    `M ${chartX} ${chartY}`,
+                    `L ${start.x} ${start.y}`,
+                    `A ${radius} ${radius} 0 ${largeArc} 0 ${end.x} ${end.y}`,
+                    'Z'
+                ].join(' ')
+
+            slices += `
 <path
     d="${path}"
     fill="${color}"
@@ -279,24 +310,26 @@ export default async function handler(
     stroke-width="4"
 >
     <title>${escapeXml(contributor.login)}: ${contributor.percentage.toFixed(2)}%</title>
-</path>
-`
-            })
-            .join('')
+</path>`
+        })
 
-        const cards = data
-            .slice(0, 3)
-            .map((contributor: any, index: number) => {
+        let cards = ''
+
+        data.slice(0, 3).forEach(
+            (contributor: any, index: number) => {
                 const cardX = 390
-                const cardY = 145 + index * 112
+                const cardY =
+                    145 +
+                    index * 112
+
                 const cardWidth = 465
                 const cardHeight = 92
 
-                const percentage =
-                    contributor.percentage.toFixed(2)
+                const isFirst =
+                    index === 0
 
-                const isFirst = index === 0
-                const isSecond = index === 1
+                const isSecond =
+                    index === 1
 
                 const accent =
                     isFirst
@@ -310,15 +343,24 @@ export default async function handler(
                         ? '#fbbf24'
                         : '#1e335b'
 
-                const progressWidth =
-                    Math.max(
-                        6,
-                        contributor.percentage * 3.15
+                const percentage =
+                    contributor.percentage.toFixed(2)
+
+                const progress =
+                    Math.min(
+                        315,
+                        Math.max(
+                            6,
+                            contributor.percentage /
+                            100 *
+                            315
+                        )
                     )
 
-                const avatar =
-                    contributor.avatar
-                        ? `
+                let avatar = ''
+
+                if (contributor.avatar) {
+                    avatar = `
 <clipPath id="avatarClip${index}">
     <circle
         cx="${cardX + 48}"
@@ -336,15 +378,15 @@ export default async function handler(
     height="56"
     preserveAspectRatio="xMidYMid slice"
     clip-path="url(#avatarClip${index})"
-/>
-`
-                        : `
+/>`
+                } else {
+                    avatar = `
 <circle
     cx="${cardX + 48}"
     cy="${cardY + 46}"
     r="28"
     fill="${accent}"
-    opacity="0.25"
+    opacity="0.22"
 />
 
 <circle
@@ -355,12 +397,12 @@ export default async function handler(
 />
 
 <path
-    d="M ${cardX + 32} ${cardY + 62}
-       Q ${cardX + 48} ${cardY + 45}
-       ${cardX + 64} ${cardY + 62}"
+    d="M ${cardX + 31} ${cardY + 62}
+       Q ${cardX + 48} ${cardY + 44}
+       ${cardX + 65} ${cardY + 62}"
     fill="${accent}"
-/>
-`
+/>`
+                }
 
                 const crown =
                     isFirst
@@ -368,14 +410,14 @@ export default async function handler(
 <text
     x="${cardX + 28}"
     y="${cardY + 9}"
+    font-family="Arial, Helvetica, sans-serif"
     font-size="22"
 >
-    👑
-</text>
-`
+    &#128081;
+</text>`
                         : ''
 
-                return `
+                cards += `
 <rect
     x="${cardX}"
     y="${cardY}"
@@ -454,7 +496,7 @@ ${avatar}
 <rect
     x="${cardX + 92}"
     y="${cardY + 65}"
-    width="${Math.min(315, progressWidth)}"
+    width="${progress}"
     height="7"
     rx="4"
     fill="${accent}"
@@ -470,10 +512,9 @@ ${avatar}
     fill="${accent}"
 >
     ${percentage}%
-</text>
-`
-            })
-            .join('')
+</text>`
+            }
+        )
 
         const svg = `
 <svg
@@ -482,8 +523,6 @@ ${avatar}
     width="${width}"
     height="${height}"
     viewBox="0 0 ${width} ${height}"
-    role="img"
-    aria-label="GitHub Contributors"
 >
 
 <defs>
@@ -497,7 +536,7 @@ ${avatar}
 >
     <stop
         offset="0%"
-        stop-color="#07142d"
+        stop-color="#061329"
     />
     <stop
         offset="50%"
@@ -505,20 +544,17 @@ ${avatar}
     />
     <stop
         offset="100%"
-        stop-color="#10184a"
+        stop-color="#11164b"
     />
 </linearGradient>
 
 <radialGradient
-    id="glow"
-    cx="50%"
-    cy="50%"
-    r="50%"
+    id="blueGlow"
 >
     <stop
         offset="0%"
         stop-color="#2563eb"
-        stop-opacity="0.28"
+        stop-opacity="0.35"
     />
     <stop
         offset="100%"
@@ -527,53 +563,37 @@ ${avatar}
     />
 </radialGradient>
 
-<filter
-    id="shadow"
-    x="-30%"
-    y="-30%"
-    width="160%"
-    height="160%"
->
-    <feDropShadow
-        dx="0"
-        dy="8"
-        stdDeviation="12"
-        flood-color="#000000"
-        flood-opacity="0.35"
-    />
-</filter>
-
 </defs>
 
 <rect
-    width="${width}"
-    height="${height}"
+    width="900"
+    height="560"
     rx="28"
     fill="url(#background)"
 />
 
 <circle
-    cx="80"
+    cx="70"
     cy="120"
     r="190"
-    fill="url(#glow)"
+    fill="url(#blueGlow)"
 />
 
 <circle
     cx="850"
-    cy="510"
+    cy="500"
     r="200"
-    fill="url(#glow)"
+    fill="url(#blueGlow)"
 />
 
 <path
-    d="M0 475
-       C180 430 290 520 430 485
-       C610 440 700 510 900 430
+    d="M0 485
+       C160 445 290 520 440 480
+       C600 438 740 510 900 425
        L900 560
        L0 560 Z"
-    fill="#111b52"
-    opacity="0.5"
+    fill="#121b50"
+    opacity="0.55"
 />
 
 <circle
@@ -585,9 +605,9 @@ ${avatar}
 
 <path
     d="M35 50
-       C35 39 61 38 62 50
-       C62 60 51 67 48 69
-       C45 67 35 60 35 50 Z"
+       C35 40 60 39 61 50
+       C61 59 52 66 48 69
+       C44 66 35 59 35 50Z"
     fill="#0b1830"
 />
 
@@ -634,7 +654,7 @@ ${avatar}
     font-weight="700"
     fill="#a78bfa"
 >
-    WE BUILD ✦
+    WE BUILD &#10022;
 </text>
 
 <circle
@@ -748,7 +768,6 @@ ${cards}
         )
 
         res.status(200).send(svg)
-
     } catch (error) {
         console.error(
             'Contributor SVG Error:',
@@ -762,4 +781,3 @@ ${cards}
             .send('Failed to fetch contributor data')
     }
 }
-```
