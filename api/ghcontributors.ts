@@ -4,7 +4,6 @@ export default async function handler(
     req: VercelRequest,
     res: VercelResponse
 ) {
-
     const user = (req.query.user as string)?.trim()
     const repo = (req.query.repo as string)?.trim()
 
@@ -33,8 +32,15 @@ export default async function handler(
         'X-GitHub-Api-Version': '2026-03-10',
     }
 
-    try {
+    const escapeXml = (value: string) =>
+        String(value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&apos;')
 
+    try {
         const ghResp = await fetch(apiUrl, { headers })
 
         if (!ghResp.ok) {
@@ -61,11 +67,10 @@ export default async function handler(
         const mergedContributors = new Map<string, any>()
 
         contributors.forEach((contributor: any) => {
-
             const identity =
                 contributor.login ||
                 contributor.name ||
-                'Unknown'
+                'Someone'
 
             const displayName =
                 myIdentities.has(identity)
@@ -76,14 +81,11 @@ export default async function handler(
                 Number(contributor.contributions) || 0
 
             if (mergedContributors.has(displayName)) {
-
                 const existing =
                     mergedContributors.get(displayName)
 
                 existing.contributions += contributions
-
             } else {
-
                 mergedContributors.set(displayName, {
                     login: displayName,
                     avatar: contributor.avatar_url || '',
@@ -99,6 +101,11 @@ export default async function handler(
         const mergedData =
             Array.from(mergedContributors.values())
 
+        mergedData.sort(
+            (a, b) =>
+                b.contributions - a.contributions
+        )
+
         const total = mergedData.reduce(
             (sum: number, contributor: any) =>
                 sum + contributor.contributions,
@@ -110,361 +117,769 @@ export default async function handler(
             return
         }
 
-        // Sort by contributions descending so rank #1 is always accurate.
-        const data = mergedData
+        const MAX_CONTRIBUTORS = 7
+
+        let chartData = mergedData
+            .slice(0, MAX_CONTRIBUTORS)
             .map((contributor: any) => ({
                 ...contributor,
                 percentage:
                     (contributor.contributions / total) * 100,
             }))
-            .sort(
-                (a: any, b: any) => b.contributions - a.contributions
-            )
 
-        const MAX_CONTRIBUTORS = 6
+        if (mergedData.length > MAX_CONTRIBUTORS) {
+            const visibleContributions =
+                mergedData
+                    .slice(0, MAX_CONTRIBUTORS)
+                    .reduce(
+                        (sum: number, contributor: any) =>
+                            sum + contributor.contributions,
+                        0
+                    )
 
-        let chartData = data.slice(0, MAX_CONTRIBUTORS)
-
-        if (data.length > MAX_CONTRIBUTORS) {
-
-            const rest = data.slice(MAX_CONTRIBUTORS)
-
-            const othersContributions = rest.reduce(
-                (sum: number, contributor: any) =>
-                    sum + contributor.contributions,
-                0
-            )
-
-            const othersPercentage = rest.reduce(
-                (sum: number, contributor: any) =>
-                    sum + contributor.percentage,
-                0
-            )
+            const othersContributions =
+                total - visibleContributions
 
             chartData.push({
                 login: 'Others',
                 avatar: '',
                 url: '#',
                 contributions: othersContributions,
-                percentage: othersPercentage,
+                percentage:
+                    (othersContributions / total) * 100,
             })
         }
 
-        const svg = renderCard(user, repo, chartData)
+        const width = 900
+        const height = 560
 
-        res.setHeader('Content-Type', 'image/svg+xml')
-        res.setHeader('Cache-Control', 'public, max-age=3600')
+        const chartColors = [
+            '#0ea5ff',
+            '#a855f7',
+            '#22c55e',
+            '#f59e0b',
+            '#ef4444',
+            '#06b6d4',
+            '#ec4899',
+            '#64748b',
+        ]
+
+        const polarToCartesian = (
+            centerX: number,
+            centerY: number,
+            radius: number,
+            angle: number
+        ) => {
+            const angleInRadians =
+                (angle - 90) * Math.PI / 180
+
+            return {
+                x:
+                    centerX +
+                    radius * Math.cos(angleInRadians),
+                y:
+                    centerY +
+                    radius * Math.sin(angleInRadians),
+            }
+        }
+
+        const describeArc = (
+            centerX: number,
+            centerY: number,
+            radius: number,
+            startAngle: number,
+            endAngle: number
+        ) => {
+            const start =
+                polarToCartesian(
+                    centerX,
+                    centerY,
+                    radius,
+                    endAngle
+                )
+
+            const end =
+                polarToCartesian(
+                    centerX,
+                    centerY,
+                    radius,
+                    startAngle
+                )
+
+            const largeArcFlag =
+                endAngle - startAngle <= 180
+                    ? '0'
+                    : '1'
+
+            return [
+                `M ${centerX} ${centerY}`,
+                `L ${start.x} ${start.y}`,
+                `A ${radius} ${radius} 0 ${largeArcFlag} 0 ${end.x} ${end.y}`,
+                'Z'
+            ].join(' ')
+        }
+
+        const chartX = 205
+        const chartY = 315
+        const radius = 145
+        const innerRadius = 91
+
+        let currentAngle = 0
+
+        const slices = chartData
+            .map((contributor: any, index: number) => {
+                const startAngle = currentAngle
+
+                const sliceAngle =
+                    contributor.percentage * 3.6
+
+                const endAngle =
+                    currentAngle + sliceAngle
+
+                currentAngle = endAngle
+
+                const path =
+                    describeArc(
+                        chartX,
+                        chartY,
+                        radius,
+                        startAngle,
+                        endAngle
+                    )
+
+                return `
+<path
+    d="${path}"
+    fill="url(#chartGradient${index})"
+    stroke="#08152f"
+    stroke-width="4"
+>
+    <title>${escapeXml(contributor.login)}: ${contributor.percentage.toFixed(2)}%</title>
+</path>
+`
+            })
+            .join('')
+
+        const cards = chartData
+            .slice(0, 3)
+            .map((contributor: any, index: number) => {
+                const cardX = 390
+                const cardY = 145 + index * 112
+                const cardWidth = 465
+                const cardHeight = 92
+
+                const percentage =
+                    contributor.percentage.toFixed(2)
+
+                const progressWidth =
+                    Math.max(
+                        8,
+                        (contributor.percentage / 100) * 400
+                    )
+
+                const isFirst = index === 0
+                const isSecond = index === 1
+                const isThird = index === 2
+
+                const border =
+                    isFirst
+                        ? '#fbbf24'
+                        : '#1e335b'
+
+                const avatarGradient =
+                    isFirst
+                        ? 'url(#goldAvatar)'
+                        : isSecond
+                            ? 'url(#purpleAvatar)'
+                            : 'url(#greenAvatar)'
+
+                const accent =
+                    isFirst
+                        ? '#fbbf24'
+                        : isSecond
+                            ? '#c084fc'
+                            : '#34d399'
+
+                const avatarIcon =
+                    contributor.avatar
+                        ? `
+<clipPath id="avatarClip${index}">
+    <circle
+        cx="${cardX + 48}"
+        cy="${cardY + 46}"
+        r="28"
+    />
+</clipPath>
+
+<image
+    href="${escapeXml(contributor.avatar)}"
+    x="${cardX + 20}"
+    y="${cardY + 18}"
+    width="56"
+    height="56"
+    preserveAspectRatio="xMidYMid slice"
+    clip-path="url(#avatarClip${index})"
+/>
+`
+                        : `
+<circle
+    cx="${cardX + 48}"
+    cy="${cardY + 46}"
+    r="28"
+    fill="${avatarGradient}"
+/>
+
+<circle
+    cx="${cardX + 48}"
+    cy="${cardY + 38}"
+    r="9"
+    fill="#ffffff"
+    opacity="0.9"
+/>
+
+<path
+    d="M ${cardX + 32} ${cardY + 61}
+       Q ${cardX + 48} ${cardY + 45}
+       ${cardX + 64} ${cardY + 61}"
+    fill="#ffffff"
+    opacity="0.9"
+/>
+`
+
+                const rankBadge = `
+<circle
+    cx="${cardX + 70}"
+    cy="${cardY + 70}"
+    r="13"
+    fill="${accent}"
+/>
+
+<text
+    x="${cardX + 70}"
+    y="${cardY + 75}"
+    text-anchor="middle"
+    font-family="Arial, Helvetica, sans-serif"
+    font-size="12"
+    font-weight="700"
+    fill="#071326"
+>
+    ${index + 1}
+</text>
+`
+
+                const crown =
+                    isFirst
+                        ? `
+<text
+    x="${cardX + 28}"
+    y="${cardY + 10}"
+    font-size="23"
+>
+    👑
+</text>
+`
+                        : ''
+
+                const label =
+                    isFirst
+                        ? 'TOP CONTRIBUTOR'
+                        : isSecond
+                            ? 'CONTRIBUTOR'
+                            : 'CONTRIBUTOR'
+
+                return `
+<defs>
+    <linearGradient
+        id="cardGradient${index}"
+        x1="0"
+        y1="0"
+        x2="1"
+        y2="1"
+    >
+        <stop
+            offset="0%"
+            stop-color="${isFirst ? '#211d13' : '#101f3c'}"
+        />
+        <stop
+            offset="100%"
+            stop-color="#0b1830"
+        />
+    </linearGradient>
+</defs>
+
+<rect
+    x="${cardX}"
+    y="${cardY}"
+    width="${cardWidth}"
+    height="${cardHeight}"
+    rx="18"
+    fill="url(#cardGradient${index})"
+    stroke="${border}"
+    stroke-width="${isFirst ? 2 : 1.5}"
+/>
+
+${crown}
+
+<circle
+    cx="${cardX + 48}"
+    cy="${cardY + 46}"
+    r="31"
+    fill="#071326"
+    stroke="${accent}"
+    stroke-width="2"
+    opacity="0.95"
+/>
+
+${avatarIcon}
+
+${rankBadge}
+
+<text
+    x="${cardX + 92}"
+    y="${cardY + 32}"
+    font-family="Arial, Helvetica, sans-serif"
+    font-size="16"
+    font-weight="700"
+    fill="#f8fafc"
+>
+    ${escapeXml(contributor.login)}
+</text>
+
+<text
+    x="${cardX + 92}"
+    y="${cardY + 52}"
+    font-family="Arial, Helvetica, sans-serif"
+    font-size="10"
+    font-weight="600"
+    letter-spacing="1"
+    fill="${accent}"
+>
+    ${label}
+</text>
+
+<rect
+    x="${cardX + 92}"
+    y="${cardY + 65}"
+    width="315"
+    height="7"
+    rx="4"
+    fill="#243653"
+/>
+
+<rect
+    x="${cardX + 92}"
+    y="${cardY + 65}"
+    width="${progressWidth * 0.79}"
+    height="7"
+    rx="4"
+    fill="${accent}"
+/>
+
+<text
+    x="${cardX + 430}"
+    y="${cardY + 38}"
+    text-anchor="end"
+    font-family="Arial, Helvetica, sans-serif"
+    font-size="18"
+    font-weight="700"
+    fill="${accent}"
+>
+    ${percentage}%
+</text>
+`
+            })
+            .join('')
+
+        const totalContributions =
+            chartData.reduce(
+                (sum: number, contributor: any) =>
+                    sum + contributor.percentage,
+                0
+            )
+
+        const svg = `
+<svg
+    xmlns="http://www.w3.org/2000/svg"
+    xmlns:xlink="http://www.w3.org/1999/xlink"
+    width="${width}"
+    height="${height}"
+    viewBox="0 0 ${width} ${height}"
+    role="img"
+    aria-label="GitHub Contributors"
+>
+
+<defs>
+
+    <linearGradient
+        id="background"
+        x1="0"
+        y1="0"
+        x2="1"
+        y2="1"
+    >
+        <stop
+            offset="0%"
+            stop-color="#07142d"
+        />
+        <stop
+            offset="48%"
+            stop-color="#0b1b38"
+        />
+        <stop
+            offset="100%"
+            stop-color="#10184a"
+        />
+    </linearGradient>
+
+    <radialGradient
+        id="glow"
+        cx="50%"
+        cy="50%"
+        r="50%"
+    >
+        <stop
+            offset="0%"
+            stop-color="#2563eb"
+            stop-opacity="0.28"
+        />
+        <stop
+            offset="100%"
+            stop-color="#2563eb"
+            stop-opacity="0"
+        />
+    </radialGradient>
+
+    <linearGradient
+        id="goldAvatar"
+        x1="0"
+        y1="0"
+        x2="1"
+        y2="1"
+    >
+        <stop
+            offset="0%"
+            stop-color="#fde68a"
+        />
+        <stop
+            offset="100%"
+            stop-color="#f59e0b"
+        />
+    </linearGradient>
+
+    <linearGradient
+        id="purpleAvatar"
+        x1="0"
+        y1="0"
+        x2="1"
+        y2="1"
+    >
+        <stop
+            offset="0%"
+            stop-color="#e9d5ff"
+        />
+        <stop
+            offset="100%"
+            stop-color="#9333ea"
+        />
+    </linearGradient>
+
+    <linearGradient
+        id="greenAvatar"
+        x1="0"
+        y1="0"
+        x2="1"
+        y2="1"
+    >
+        <stop
+            offset="0%"
+            stop-color="#a7f3d0"
+        />
+        <stop
+            offset="100%"
+            stop-color="#059669"
+        />
+    </linearGradient>
+
+    ${chartData
+        .map(
+            (_: any, index: number) => `
+<linearGradient
+    id="chartGradient${index}"
+    x1="0"
+    y1="0"
+    x2="1"
+    y2="1"
+>
+    <stop
+        offset="0%"
+        stop-color="${chartColors[index % chartColors.length]}"
+    />
+    <stop
+        offset="100%"
+        stop-color="${chartColors[index % chartColors.length]}"
+        stop-opacity="0.65"
+    />
+</linearGradient>
+`
+        )
+        .join('')}
+
+    <filter
+        id="shadow"
+        x="-30%"
+        y="-30%"
+        width="160%"
+        height="160%"
+    >
+        <feDropShadow
+            dx="0"
+            dy="8"
+            stdDeviation="12"
+            flood-color="#000000"
+            flood-opacity="0.35"
+        />
+    </filter>
+
+    <filter
+        id="softGlow"
+        x="-50%"
+        y="-50%"
+        width="200%"
+        height="200%"
+    >
+        <feGaussianBlur
+            stdDeviation="8"
+            result="blur"
+        />
+        <feMerge>
+            <feMergeNode in="blur"/>
+            <feMergeNode in="SourceGraphic"/>
+        </feMerge>
+    </filter>
+
+</defs>
+
+<rect
+    width="${width}"
+    height="${height}"
+    rx="28"
+    fill="url(#background)"
+/>
+
+<circle
+    cx="80"
+    cy="120"
+    r="180"
+    fill="url(#glow)"
+/>
+
+<circle
+    cx="850"
+    cy="510"
+    r="200"
+    fill="url(#glow)"
+/>
+
+<path
+    d="M0 475
+       C180 430 290 520 430 485
+       C610 440 700 510 900 430
+       L900 560
+       L0 560 Z"
+    fill="#111b52"
+    opacity="0.5"
+/>
+
+<circle
+    cx="48"
+    cy="54"
+    r="22"
+    fill="#f8fafc"
+    opacity="0.95"
+/>
+
+<path
+    d="M35 50
+       C35 39 61 38 62 50
+       C62 60 51 67 48 69
+       C45 67 35 60 35 50 Z"
+    fill="#0b1830"
+/>
+
+<text
+    x="84"
+    y="58"
+    font-family="Arial, Helvetica, sans-serif"
+    font-size="30"
+    font-weight="700"
+    fill="#f8fafc"
+>
+    Contributors
+</text>
+
+<text
+    x="86"
+    y="83"
+    font-family="Arial, Helvetica, sans-serif"
+    font-size="12"
+    fill="#8fa7cf"
+>
+    Amazing people who make this project better
+</text>
+
+<text
+    x="820"
+    y="55"
+    text-anchor="end"
+    font-family="Arial, Helvetica, sans-serif"
+    font-size="11"
+    font-weight="700"
+    letter-spacing="1"
+    fill="#8fa7cf"
+>
+    TOGETHER
+</text>
+
+<text
+    x="820"
+    y="76"
+    text-anchor="end"
+    font-family="Arial, Helvetica, sans-serif"
+    font-size="14"
+    font-weight="700"
+    fill="#a78bfa"
+>
+    WE BUILD ✦
+</text>
+
+<circle
+    cx="${chartX}"
+    cy="${chartY}"
+    r="${radius + 8}"
+    fill="none"
+    stroke="#14294b"
+    stroke-width="4"
+/>
+
+${slices}
+
+<circle
+    cx="${chartX}"
+    cy="${chartY}"
+    r="${innerRadius}"
+    fill="#09172f"
+    stroke="#14294b"
+    stroke-width="3"
+/>
+
+<text
+    x="${chartX}"
+    y="${chartY - 12}"
+    text-anchor="middle"
+    font-family="Arial, Helvetica, sans-serif"
+    font-size="11"
+    font-weight="600"
+    fill="#8fa7cf"
+>
+    TOTAL
+</text>
+
+<text
+    x="${chartX}"
+    y="${chartY + 17}"
+    text-anchor="middle"
+    font-family="Arial, Helvetica, sans-serif"
+    font-size="27"
+    font-weight="700"
+    fill="#f8fafc"
+>
+    ${totalContributions.toFixed(0)}%
+</text>
+
+<text
+    x="${chartX}"
+    y="${chartY + 39}"
+    text-anchor="middle"
+    font-family="Arial, Helvetica, sans-serif"
+    font-size="10"
+    fill="#7188ad"
+>
+    contribution share
+</text>
+
+${cards}
+
+<text
+    x="48"
+    y="526"
+    font-family="Arial, Helvetica, sans-serif"
+    font-size="11"
+    fill="#7f96bb"
+>
+    Open Source
+</text>
+
+<circle
+    cx="126"
+    cy="522"
+    r="2"
+    fill="#64748b"
+/>
+
+<text
+    x="138"
+    y="526"
+    font-family="Arial, Helvetica, sans-serif"
+    font-size="11"
+    fill="#7f96bb"
+>
+    Build Together
+</text>
+
+<text
+    x="850"
+    y="526"
+    text-anchor="end"
+    font-family="Arial, Helvetica, sans-serif"
+    font-size="10"
+    font-weight="600"
+    letter-spacing="1"
+    fill="#516a94"
+>
+    GITHUB CONTRIBUTORS
+</text>
+
+<path
+    d="M820 500 l6 12 l12 6 l-12 6 l-6 12 l-6-12 l-12-6 l12-6 Z"
+    fill="#38bdf8"
+    filter="url(#softGlow)"
+/>
+
+<path
+    d="M785 510 l4 8 l8 4 l-8 4 l-4 8 l-4-8 l-8-4 l8-4 Z"
+    fill="#a855f7"
+/>
+
+</svg>
+`
+
+        res.setHeader(
+            'Content-Type',
+            'image/svg+xml; charset=utf-8'
+        )
+
+        res.setHeader(
+            'Cache-Control',
+            'public, max-age=3600'
+        )
+
         res.status(200).send(svg)
 
     } catch (error) {
-
         console.error(error)
 
         res
             .status(500)
             .send('Failed to fetch contributor data')
     }
-}
-
-// ---------------------------------------------------------------------------
-// Rendering
-// ---------------------------------------------------------------------------
-
-const ACCENTS = [
-    { fill: '#3b82f6', dark: '#1d4ed8', text: '#93c5fd' }, // blue    - rank 1 identity
-    { fill: '#a855f7', dark: '#7e22ce', text: '#d8b4fe' }, // purple  - rank 2
-    { fill: '#22c55e', dark: '#15803d', text: '#86efac' }, // green   - rank 3
-    { fill: '#ec4899', dark: '#be185d', text: '#f9a8d4' }, // pink
-    { fill: '#06b6d4', dark: '#0e7490', text: '#67e8f9' }, // cyan
-    { fill: '#f97316', dark: '#c2410c', text: '#fdba74' }, // orange
-    { fill: '#ef4444', dark: '#b91c1c', text: '#fca5a5' }, // red
-    { fill: '#64748b', dark: '#334155', text: '#cbd5e1' }, // slate ("Others")
-]
-
-const GOLD = '#fbbf24'
-const GOLD_DARK = '#d97706'
-
-function renderCard(user: string, repo: string, chartData: any[]): string {
-
-    const width = 1000
-    const headerHeight = 195
-    const rowHeight = 132
-    const rowGap = 16
-    const perRow = rowHeight + rowGap
-    const footerHeight = 66
-
-    const height =
-        headerHeight + chartData.length * perRow - rowGap + footerHeight
-
-    const cardX = 430
-    const cardWidth = width - cardX - 40
-
-    const donutCx = 220
-    const donutCy = headerHeight + (chartData.length * perRow - rowGap) / 2
-    const outerR = 150
-    const innerR = 96
-
-    const slices = buildDonutSlices(chartData, donutCx, donutCy, outerR, innerR)
-    const rows = buildRows(chartData, cardX, cardWidth, headerHeight, perRow, rowHeight)
-
-    return `
-<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-    <defs>
-        <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stop-color="#0b1120" />
-            <stop offset="55%" stop-color="#0f172a" />
-            <stop offset="100%" stop-color="#111827" />
-        </linearGradient>
-        <linearGradient id="waveGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.35" />
-            <stop offset="100%" stop-color="#6366f1" stop-opacity="0.15" />
-        </linearGradient>
-        <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stop-color="${GOLD}" />
-            <stop offset="100%" stop-color="${GOLD_DARK}" />
-        </linearGradient>
-        <filter id="softShadow" x="-50%" y="-50%" width="200%" height="200%">
-            <feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#000000" flood-opacity="0.35" />
-        </filter>
-        <filter id="goldGlow" x="-60%" y="-60%" width="220%" height="220%">
-            <feDropShadow dx="0" dy="0" stdDeviation="7" flood-color="${GOLD}" flood-opacity="0.55" />
-        </filter>
-        <clipPath id="cardClip"><rect width="${width}" height="${height}" rx="24" /></clipPath>
-    </defs>
-
-    <g clip-path="url(#cardClip)">
-        <rect width="${width}" height="${height}" fill="url(#bg)" />
-
-        <!-- decorative wave, bottom-right -->
-        <path d="M ${width - 260} ${height} C ${width - 180} ${height - 90}, ${width - 60} ${height - 40}, ${width} ${height - 130} L ${width} ${height} Z" fill="url(#waveGrad)" />
-
-        <rect x="1" y="1" width="${width - 2}" height="${height - 2}" rx="23" fill="none" stroke="rgba(148,163,184,0.18)" stroke-width="1" />
-    </g>
-
-    <!-- Header -->
-    ${brandIcon(40, 42, 26)}
-    <text x="104" y="60" font-family="'Segoe UI', Arial, sans-serif" font-size="32" font-weight="800" fill="#f8fafc">Contributors</text>
-    <text x="104" y="86" font-family="'Segoe UI', Arial, sans-serif" font-size="14" fill="#94a3b8">Amazing people who make this project better</text>
-    ${vectorHeart(432, 79, 9)}
-
-    <text x="${width - 40}" y="48" text-anchor="end" font-family="Georgia, 'Times New Roman', serif" font-style="italic" font-size="16" fill="#a5b4fc">Together</text>
-    <text x="${width - 40}" y="72" text-anchor="end" font-family="Georgia, 'Times New Roman', serif" font-style="italic" font-size="16" fill="#a5b4fc">We Build</text>
-    ${vectorSparkle(width - 22, 26, 7)}
-    ${vectorSparkle(width - 140, 92, 5)}
-    <line x1="${width - 128}" y1="78" x2="${width - 40}" y2="78" stroke="#6366f1" stroke-width="1.5" stroke-linecap="round" opacity="0.6" />
-
-    <!-- Donut -->
-    ${slices}
-    <circle cx="${donutCx}" cy="${donutCy}" r="${innerR - 8}" fill="#0f172a" filter="url(#softShadow)" />
-    ${brandIcon(donutCx - 20, donutCy - 44, 20)}
-    <text x="${donutCx}" y="${donutCy + 8}" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="13" fill="#94a3b8">Total Contributions</text>
-    <text x="${donutCx}" y="${donutCy + 38}" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="30" font-weight="800" fill="#f8fafc">100%</text>
-
-    <!-- Ranked cards -->
-    ${rows}
-
-    <!-- Footer -->
-    ${brandIcon(40, height - 46, 15)}
-    <text x="72" y="${height - 34}" font-family="'Segoe UI', Arial, sans-serif" font-size="13" fill="#94a3b8">Open Source &#160;&#8226;&#160; Build Together</text>
-
-    ${vectorSparkle(width - 34, height - 46, 6)}
-    ${vectorSparkle(width - 64, height - 20, 4)}
-</svg>
-`.trim()
-}
-
-function vectorSparkle(cx: number, cy: number, size: number): string {
-    // small 4-point star, used instead of an emoji so it renders identically everywhere
-    return `
-        <path d="M ${cx} ${cy - size} Q ${cx + size * 0.22} ${cy - size * 0.22} ${cx + size} ${cy} Q ${cx + size * 0.22} ${cy + size * 0.22} ${cx} ${cy + size} Q ${cx - size * 0.22} ${cy + size * 0.22} ${cx - size} ${cy} Q ${cx - size * 0.22} ${cy - size * 0.22} ${cx} ${cy - size} Z" fill="#c7d2fe" opacity="0.85" />
-    `
-}
-
-function vectorHeart(cx: number, cy: number, size: number): string {
-    return `
-        <path d="M ${cx} ${cy + size * 0.7}
-                 C ${cx - size * 1.3} ${cy - size * 0.4}, ${cx - size * 0.4} ${cy - size * 1.3}, ${cx} ${cy - size * 0.4}
-                 C ${cx + size * 0.4} ${cy - size * 1.3}, ${cx + size * 1.3} ${cy - size * 0.4}, ${cx} ${cy + size * 0.7} Z"
-              fill="#a78bfa" />
-    `
-}
-
-function vectorCrown(cx: number, cy: number, w: number, h: number): string {
-    const left = cx - w / 2
-    const right = cx + w / 2
-    const base = cy + h * 0.35
-    const top = cy - h * 0.55
-    return `
-        <path d="M ${left} ${base}
-                 L ${left} ${cy}
-                 L ${left + w * 0.25} ${cy + h * 0.15}
-                 L ${cx} ${top}
-                 L ${right - w * 0.25} ${cy + h * 0.15}
-                 L ${right} ${cy}
-                 L ${right} ${base}
-                 Z"
-              fill="url(#goldGrad)" stroke="${GOLD_DARK}" stroke-width="0.8" />
-        <circle cx="${left}" cy="${cy}" r="${w * 0.05}" fill="${GOLD}" />
-        <circle cx="${cx}" cy="${top}" r="${w * 0.06}" fill="${GOLD}" />
-        <circle cx="${right}" cy="${cy}" r="${w * 0.05}" fill="${GOLD}" />
-    `
-}
-
-function brandIcon(x: number, y: number, r: number): string {
-    // Generic "repo / code" mark (avoids reproducing any third-party logo).
-    return `
-        <g>
-            <circle cx="${x + r}" cy="${y + r}" r="${r}" fill="#ffffff" />
-            <text x="${x + r}" y="${y + r + r * 0.36}" text-anchor="middle" font-family="'Consolas', 'Courier New', monospace" font-size="${r * 1.15}" font-weight="700" fill="#0f172a">&lt;/&gt;</text>
-        </g>
-    `
-}
-
-function polar(cx: number, cy: number, r: number, angleDeg: number) {
-    const rad = (angleDeg - 90) * Math.PI / 180
-    return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) }
-}
-
-function donutSlicePath(cx: number, cy: number, rOuter: number, rInner: number, startAngle: number, endAngle: number) {
-    const outerStart = polar(cx, cy, rOuter, endAngle)
-    const outerEnd = polar(cx, cy, rOuter, startAngle)
-    const innerStart = polar(cx, cy, rInner, startAngle)
-    const innerEnd = polar(cx, cy, rInner, endAngle)
-    const largeArc = endAngle - startAngle <= 180 ? '0' : '1'
-
-    return [
-        `M ${outerStart.x} ${outerStart.y}`,
-        `A ${rOuter} ${rOuter} 0 ${largeArc} 0 ${outerEnd.x} ${outerEnd.y}`,
-        `L ${innerStart.x} ${innerStart.y}`,
-        `A ${rInner} ${rInner} 0 ${largeArc} 1 ${innerEnd.x} ${innerEnd.y}`,
-        'Z',
-    ].join(' ')
-}
-
-function buildDonutSlices(chartData: any[], cx: number, cy: number, rOuter: number, rInner: number): string {
-
-    let currentAngle = 0
-
-    return chartData.map((contributor, index) => {
-
-        const startAngle = currentAngle
-        const sliceAngle = contributor.percentage * 3.6
-        const endAngle = currentAngle + sliceAngle
-        currentAngle = endAngle
-
-        const accent = ACCENTS[index % ACCENTS.length]
-        const isTop = index === 0
-
-        const path = donutSlicePath(cx, cy, rOuter, rInner, startAngle, endAngle)
-
-        return `
-            <path
-                d="${path}"
-                fill="${accent.fill}"
-                stroke="#0b1120"
-                stroke-width="3"
-                ${isTop ? 'filter="url(#softShadow)"' : ''}
-            >
-                <title>${escapeXml(contributor.login)}: ${contributor.percentage.toFixed(2)}%</title>
-            </path>
-        `
-    }).join('')
-}
-
-function avatarIcon(rank: number, cx: number, cy: number, r: number, accentFill: string, login: string): string {
-
-    if (rank === 0) {
-        // code-style avatar for the top contributor
-        return `
-            <circle cx="${cx}" cy="${cy}" r="${r}" fill="#111827" stroke="${accentFill}" stroke-width="2" />
-            <text x="${cx}" y="${cy + r * 0.32}" text-anchor="middle" font-family="'Consolas', 'Courier New', monospace" font-size="${r * 0.85}" font-weight="700" fill="${accentFill}">&lt;/&gt;</text>
-        `
-    }
-
-    if (rank === 1) {
-        // simple mask silhouette
-        return `
-            <circle cx="${cx}" cy="${cy}" r="${r}" fill="${accentFill}" />
-            <rect x="${cx - r * 0.55}" y="${cy - r * 0.12}" width="${r * 1.1}" height="${r * 0.55}" rx="${r * 0.25}" fill="#0f172a" opacity="0.85" />
-            <circle cx="${cx - r * 0.22}" cy="${cy + r * 0.14}" r="${r * 0.08}" fill="#f8fafc" />
-            <circle cx="${cx + r * 0.22}" cy="${cy + r * 0.14}" r="${r * 0.08}" fill="#f8fafc" />
-        `
-    }
-
-    // generic person icon for everyone else
-    return `
-        <circle cx="${cx}" cy="${cy}" r="${r}" fill="${accentFill}" />
-        <circle cx="${cx}" cy="${cy - r * 0.22}" r="${r * 0.32}" fill="#f8fafc" opacity="0.92" />
-        <path d="M ${cx - r * 0.5} ${cy + r * 0.55} A ${r * 0.5} ${r * 0.5} 0 0 1 ${cx + r * 0.5} ${cy + r * 0.55} Z" fill="#f8fafc" opacity="0.92" />
-    `
-}
-
-function buildRows(chartData: any[], cardX: number, cardWidth: number, headerHeight: number, perRow: number, rowHeight: number): string {
-
-    return chartData.map((contributor, index) => {
-
-        const y = headerHeight + index * perRow
-        const isTop = index === 0
-        const accent = ACCENTS[index % ACCENTS.length]
-
-        const avatarR = isTop ? 34 : 28
-        const avatarCx = cardX + 46
-        const avatarCy = y + rowHeight / 2
-
-        const barX = avatarCx + avatarR + 26
-        const pctReserve = isTop ? 130 : 100
-        const barWidth = cardX + cardWidth - barX - pctReserve
-        const nameMaxWidth = barWidth
-        const barFillWidth = Math.max(4, (contributor.percentage / 100) * barWidth)
-
-        const nameY = isTop ? y + 38 : y + rowHeight / 2 - 6
-        const subY = y + 58
-        const barY = isTop ? y + 86 : y + rowHeight / 2 + 22
-        const pctY = isTop ? y + 44 : y + rowHeight / 2 - 2
-
-        const pctColor = isTop ? GOLD : accent.text
-        const barColor = isTop ? 'url(#goldGrad)' : accent.fill
-        const nameMaxChars = Math.max(6, Math.floor(nameMaxWidth / (isTop ? 11.5 : 9.5)))
-
-        return `
-            <g>
-                ${isTop ? `
-                <rect x="${cardX - 4}" y="${y - 4}" width="${cardWidth + 8}" height="${rowHeight + 8}" rx="18"
-                    fill="rgba(251, 191, 36, 0.07)" stroke="${GOLD}" stroke-width="1.6" filter="url(#goldGlow)" />
-                ${vectorCrown(avatarCx, avatarCy - avatarR - 10, 26, 18)}
-                ` : `
-                <rect x="${cardX - 4}" y="${y - 4}" width="${cardWidth + 8}" height="${rowHeight + 8}" rx="18"
-                    fill="rgba(148, 163, 184, 0.06)" stroke="rgba(148,163,184,0.18)" stroke-width="1" />
-                `}
-
-                ${avatarIcon(index, avatarCx, avatarCy, avatarR, accent.fill, contributor.login)}
-
-                <circle cx="${avatarCx + avatarR - 4}" cy="${avatarCy + avatarR - 4}" r="12" fill="${isTop ? GOLD : accent.fill}" stroke="#0b1120" stroke-width="2" />
-                <text x="${avatarCx + avatarR - 4}" y="${avatarCy + avatarR}" text-anchor="middle" font-family="'Segoe UI', Arial, sans-serif" font-size="12" font-weight="800" fill="#0b1120">${index + 1}</text>
-
-                <text x="${barX}" y="${nameY}" font-family="'Segoe UI', Arial, sans-serif" font-size="${isTop ? 19 : 16}" font-weight="700" fill="#f8fafc">${escapeXml(truncate(contributor.login, nameMaxChars))}</text>
-
-                ${isTop ? `<text x="${barX}" y="${subY}" font-family="'Segoe UI', Arial, sans-serif" font-size="13" fill="#94a3b8">Top Contributor</text>` : ''}
-
-                <text x="${cardX + cardWidth - 4}" y="${pctY}" text-anchor="end" font-family="'Segoe UI', Arial, sans-serif" font-size="${isTop ? 22 : 16}" font-weight="800" fill="${pctColor}">${contributor.percentage.toFixed(2)}%</text>
-
-                <rect x="${barX}" y="${barY}" width="${barWidth}" height="8" rx="4" fill="rgba(148,163,184,0.15)" />
-                <rect x="${barX}" y="${barY}" width="${barFillWidth}" height="8" rx="4" fill="${barColor}" />
-            </g>
-        `
-    }).join('')
-}
-
-function escapeXml(value: string): string {
-    return String(value)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&apos;')
-}
-
-function truncate(value: string, max: number): string {
-    if (!value) return ''
-    return value.length > max ? `${value.slice(0, max - 1)}\u2026` : value
 }
