@@ -88,11 +88,8 @@ export default async function handler(
             } else {
                 mergedContributors.set(displayName, {
                     login: displayName,
-                    avatar: contributor.avatar_url || '',
-                    url:
-                        displayName === 'codewithvignesh-dev'
-                            ? 'https://github.com/codewithvignesh-dev'
-                            : contributor.html_url || '#',
+                    avatar: isMyIdentity ? 'https://github.com/codewithvignesh-dev.png?size=128' : contributor.avatar_url || '',
+                    url: isMyIdentity ? 'https://github.com/codewithvignesh-dev' : contributor.html_url || '#',
                     contributions,
                 })
             }
