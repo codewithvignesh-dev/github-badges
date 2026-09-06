@@ -103,11 +103,21 @@ export default async function handler(
                     avatar:
                         isMyIdentity
                             ? 'https://github.com/codewithvignesh-dev.png?size=128'
-                            : contributor.avatar_url || (contributor.name ? `https://github.com/${contributor.name}.png?size=128` : contributor.login ? `https://github.com/${contributor.login}.png?size=128` : '')
+                            : contributor.avatar_url ||
+                              (contributor.name
+                                  ? `https://github.com/${contributor.name}.png?size=128`
+                                  : contributor.login
+                                      ? `https://github.com/${contributor.login}.png?size=128`
+                                      : ''),
                     url:
                         isMyIdentity
                             ? 'https://github.com/codewithvignesh-dev'
-                            : contributor.html_url || (contributor.name ? `https://github.com/${contributor.name}` : contributor.login ? `https://github.com/${contributor.login}` : '') '#'
+                            : contributor.html_url ||
+                              (contributor.name
+                                  ? `https://github.com/${contributor.name}`
+                                  : contributor.login
+                                      ? `https://github.com/${contributor.login}`
+                                      : '#')
                 })
             }
         }
