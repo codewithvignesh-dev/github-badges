@@ -56,7 +56,6 @@ export default async function handler(
             'Vigneshwaran',
             'Vigneshwaran P',
             'codewithvignesh-dev',
-            'Ubuntu',
         ])
 
         const mergedContributors = new Map<string, any>()
