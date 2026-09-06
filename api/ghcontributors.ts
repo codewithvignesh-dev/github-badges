@@ -24,7 +24,7 @@ export default async function handler(
     }
 
     const apiUrl =
-        `https://api.github.com/repos/${user}/${repo}/contributors?per_page=3&anon=true`
+        `https://api.github.com/repos/${user}/${repo}/contributors?per_page=10&anon=true`
 
     const headers = {
         Accept: 'application/vnd.github+json',
