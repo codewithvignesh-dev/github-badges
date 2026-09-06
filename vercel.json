@@ -6,6 +6,6 @@
   ],
   "routes": [
     { "src": "/", "dest": "/index.ts" },
-    { "src": "/(ghpvc|ghrvc|ghflwcnt|ghsc|ghfc)", "dest": "/api/$1.ts" }
+    { "src": "/(ghpvc|ghrvc|ghflwcnt|ghsc|ghfc|ghcontributors)", "dest": "/api/$1.ts" }
   ]
 }
