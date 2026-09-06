@@ -37,7 +37,7 @@
 
 ### Contributors
 <p align="center">
-  <img src="https://gh-badges.vercel.app/ghcontributors?user=gamkers&repo=GAMKERS_AI" />
+  <img src="https://gh-badges.vercel.app/ghcontributors?user=codewithvignesh-dev&repo=github-badges" />
 </p>
 
 ---
