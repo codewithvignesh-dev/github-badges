@@ -198,7 +198,9 @@ export default async function handler(
                         fill="${colors[index % colors.length]}"
                         stroke="#ffffff"
                         stroke-width="3"
-                    />
+                    >
+                        <title>${contributor.login}: ${contributor.percentage.toFixed(2)}%</title>
+                    </path>
                 `
             })
             .join('')
