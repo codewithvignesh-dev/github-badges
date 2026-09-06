@@ -51,9 +51,58 @@ export default async function handler(
             return
         }
 
-        const total = contributors.reduce(
+        const myIdentities = new Set([
+            'tg-darkespyt',
+            'Vigneshwaran',
+            'Vigneshwaran P',
+            'codewithvignesh-dev',
+            'Ubuntu',
+        ])
+
+        const mergedContributors = new Map<string, any>()
+
+        contributors.forEach((contributor: any) => {
+
+            const identity =
+                contributor.login ||
+                contributor.name ||
+                'Unknown'
+
+            const displayName =
+                myIdentities.has(identity)
+                    ? 'codewithvignesh-dev'
+                    : identity
+
+            const contributions =
+                Number(contributor.contributions) || 0
+
+            if (mergedContributors.has(displayName)) {
+
+                const existing =
+                    mergedContributors.get(displayName)
+
+                existing.contributions += contributions
+
+            } else {
+
+                mergedContributors.set(displayName, {
+                    login: displayName,
+                    avatar: contributor.avatar_url || '',
+                    url:
+                        displayName === 'codewithvignesh-dev'
+                            ? 'https://github.com/codewithvignesh-dev'
+                            : contributor.html_url || '#',
+                    contributions,
+                })
+            }
+        })
+
+        const mergedData =
+            Array.from(mergedContributors.values())
+
+        const total = mergedData.reduce(
             (sum: number, contributor: any) =>
-                sum + (contributor.contributions || 0),
+                sum + contributor.contributions,
             0
         )
 
@@ -62,22 +111,16 @@ export default async function handler(
             return
         }
 
-        const data = contributors.map((contributor: any) => ({
-            login: contributor.login || contributor.name || 'Unknown',
-            avatar: contributor.avatar_url || '',
-            url: contributor.html_url || '#',
-            contributions: contributor.contributions || 0,
+        const data = mergedData.map((contributor: any) => ({
+            ...contributor,
             percentage:
-                ((contributor.contributions || 0) / total) * 100,
+                (contributor.contributions / total) * 100,
         }))
 
-        /*
-         * Limit chart to top 8 contributors.
-         * Remaining contributors are grouped as "Others".
-         */
         const MAX_CONTRIBUTORS = 8
 
-        let chartData = data.slice(0, MAX_CONTRIBUTORS)
+        let chartData =
+            data.slice(0, MAX_CONTRIBUTORS)
 
         if (data.length > MAX_CONTRIBUTORS) {
 
@@ -97,10 +140,6 @@ export default async function handler(
                 percentage: others,
             })
         }
-
-        /*
-         * SVG PIE CHART
-         */
 
         const width = 700
         const height = 420
@@ -205,10 +244,6 @@ export default async function handler(
             })
             .join('')
 
-        /*
-         * LEGEND
-         */
-
         const legend = chartData
             .map((contributor: any, index: number) => {
 
@@ -217,6 +252,7 @@ export default async function handler(
 
                 const percentage =
                     contributor.percentage.toFixed(2)
+
                 return `
                     <g>
                         <circle
