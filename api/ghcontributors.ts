@@ -217,39 +217,6 @@ export default async function handler(
 
                 const percentage =
                     contributor.percentage.toFixed(2)
-
-                return `
-                    <g>
-                        <circle
-                            cx="430"
-                            cy="${y}"
-                            r="7"
-                            fill="${colors[index % colors.length]}"
-                        />
-
-                        <text
-                            x="448"
-                            y="${y + 5}"
-                            font-family="Arial, sans-serif"
-                            font-size="14"
-                            fill="#24292f"
-                        >
-                            ${contributor.login}
-                        </text>
-
-                        <text
-                            x="665"
-                            y="${y + 5}"
-                            text-anchor="end"
-                            font-family="Arial, sans-serif"
-                            font-size="14"
-                            font-weight="bold"
-                            fill="#24292f"
-                        >
-                            ${percentage}%
-                        </text>
-                    </g>
-                `
             })
             .join('')
 
