@@ -63,7 +63,7 @@ export default async function handler(
         }
 
         const data = contributors.map((contributor: any) => ({
-            login: contributor.name || contributor.login || 'Unknown',
+            login: contributor.login || 'Unknown',
             avatar: contributor.avatar_url || '',
             url: contributor.html_url || '#',
             contributions: contributor.contributions || 0,
