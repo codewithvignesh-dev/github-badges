@@ -6,7 +6,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     { name: 'GitHub Repo Views', path: '/ghrvc', desc: 'Shows repository view count in badge format.' },
     { name: 'Star Count', path: '/ghsc', desc: 'Returns total stars for a repository.' },
     { name: 'Fork Count', path: '/ghfc', desc: 'Displays the number of repository forks.' },
-    { name: 'Follower Count', path: '/ghflwcnt', desc: 'Shows your total GitHub followers.' }
+    { name: 'Follower Count', path: '/ghflwcnt', desc: 'Shows your total GitHub followers.' },
     { name: 'Contribution Percentage', path: '/ghcontributors', desc: 'Shows your total GitHub followers.' }
   ]
 
