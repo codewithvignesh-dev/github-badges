@@ -1,3 +1,4 @@
+```ts
 import { VercelRequest, VercelResponse } from '@vercel/node'
 
 export default async function handler(
@@ -24,7 +25,7 @@ export default async function handler(
     }
 
     const apiUrl =
-        `https://api.github.com/repos/${user}/${repo}/contributors?per_page=10&anon=true`
+        `https://api.github.com/repos/${encodeURIComponent(user)}/${encodeURIComponent(repo)}/contributors?per_page=100&anon=true`
 
     const headers = {
         Accept: 'application/vnd.github+json',
@@ -32,8 +33,8 @@ export default async function handler(
         'X-GitHub-Api-Version': '2026-03-10',
     }
 
-    const escapeXml = (value: string) =>
-        String(value)
+    const escapeXml = (value: unknown) =>
+        String(value ?? '')
             .replace(/&/g, '&amp;')
             .replace(/</g, '&lt;')
             .replace(/>/g, '&gt;')
@@ -44,9 +45,17 @@ export default async function handler(
         const ghResp = await fetch(apiUrl, { headers })
 
         if (!ghResp.ok) {
+            const errorText = await ghResp.text()
+
+            console.error(
+                `GitHub API ${ghResp.status}:`,
+                errorText
+            )
+
             res
                 .status(ghResp.status)
-                .send(`GitHub API error: ${await ghResp.text()}`)
+                .send(`GitHub API error: ${errorText}`)
+
             return
         }
 
@@ -61,6 +70,7 @@ export default async function handler(
             'tg-darkespyt',
             'Vigneshwaran',
             'Vigneshwaran P',
+            'Ubuntu',
             'codewithvignesh-dev',
         ])
 
@@ -72,8 +82,11 @@ export default async function handler(
                 contributor.name ||
                 'Someone'
 
-            const displayName =
+            const isMyIdentity =
                 myIdentities.has(identity)
+
+            const displayName =
+                isMyIdentity
                     ? 'codewithvignesh-dev'
                     : identity
 
@@ -88,8 +101,14 @@ export default async function handler(
             } else {
                 mergedContributors.set(displayName, {
                     login: displayName,
-                    avatar: isMyIdentity ? 'https://github.com/codewithvignesh-dev.png?size=128' : contributor.avatar_url || '',
-                    url: isMyIdentity ? 'https://github.com/codewithvignesh-dev' : contributor.html_url || '#',
+                    avatar:
+                        isMyIdentity
+                            ? 'https://github.com/codewithvignesh-dev.png?size=128'
+                            : contributor.avatar_url || '',
+                    url:
+                        isMyIdentity
+                            ? 'https://github.com/codewithvignesh-dev'
+                            : contributor.html_url || '#',
                     contributions,
                 })
             }
@@ -103,41 +122,46 @@ export default async function handler(
                 b.contributions - a.contributions
         )
 
-        const total = mergedData.reduce(
-            (sum: number, contributor: any) =>
-                sum + contributor.contributions,
-            0
-        )
+        const total =
+            mergedData.reduce(
+                (sum: number, contributor: any) =>
+                    sum + contributor.contributions,
+                0
+            )
 
         if (total === 0) {
-            res.status(404).send('No contribution data found')
+            res.status(404).send(
+                'No contribution data found'
+            )
             return
         }
 
         const MAX_CONTRIBUTORS = 7
 
-        let chartData = mergedData
-            .slice(0, MAX_CONTRIBUTORS)
-            .map((contributor: any) => ({
-                ...contributor,
-                percentage:
-                    (contributor.contributions / total) * 100,
-            }))
+        const visibleContributors =
+            mergedData.slice(0, MAX_CONTRIBUTORS)
+
+        const data =
+            visibleContributors.map(
+                (contributor: any) => ({
+                    ...contributor,
+                    percentage:
+                        (contributor.contributions / total) * 100,
+                })
+            )
 
         if (mergedData.length > MAX_CONTRIBUTORS) {
-            const visibleContributions =
-                mergedData
-                    .slice(0, MAX_CONTRIBUTORS)
-                    .reduce(
-                        (sum: number, contributor: any) =>
-                            sum + contributor.contributions,
-                        0
-                    )
+            const visibleTotal =
+                visibleContributors.reduce(
+                    (sum: number, contributor: any) =>
+                        sum + contributor.contributions,
+                    0
+                )
 
             const othersContributions =
-                total - visibleContributions
+                total - visibleTotal
 
-            chartData.push({
+            data.push({
                 login: 'Others',
                 avatar: '',
                 url: '#',
@@ -150,7 +174,7 @@ export default async function handler(
         const width = 900
         const height = 560
 
-        const chartColors = [
+        const colors = [
             '#0ea5ff',
             '#a855f7',
             '#22c55e',
@@ -160,6 +184,11 @@ export default async function handler(
             '#ec4899',
             '#64748b',
         ]
+
+        const chartX = 205
+        const chartY = 315
+        const radius = 145
+        const innerRadius = 91
 
         const polarToCartesian = (
             centerX: number,
@@ -212,18 +241,13 @@ export default async function handler(
                 `M ${centerX} ${centerY}`,
                 `L ${start.x} ${start.y}`,
                 `A ${radius} ${radius} 0 ${largeArcFlag} 0 ${end.x} ${end.y}`,
-                'Z'
+                'Z',
             ].join(' ')
         }
 
-        const chartX = 205
-        const chartY = 315
-        const radius = 145
-        const innerRadius = 91
-
         let currentAngle = 0
 
-        const slices = chartData
+        const slices = data
             .map((contributor: any, index: number) => {
                 const startAngle = currentAngle
 
@@ -244,11 +268,14 @@ export default async function handler(
                         endAngle
                     )
 
+                const color =
+                    colors[index % colors.length]
+
                 return `
 <path
     d="${path}"
-    fill="url(#chartGradient${index})"
-    stroke="#08152f"
+    fill="${color}"
+    stroke="#071326"
     stroke-width="4"
 >
     <title>${escapeXml(contributor.login)}: ${contributor.percentage.toFixed(2)}%</title>
@@ -257,7 +284,7 @@ export default async function handler(
             })
             .join('')
 
-        const cards = chartData
+        const cards = data
             .slice(0, 3)
             .map((contributor: any, index: number) => {
                 const cardX = 390
@@ -268,27 +295,8 @@ export default async function handler(
                 const percentage =
                     contributor.percentage.toFixed(2)
 
-                const progressWidth =
-                    Math.max(
-                        8,
-                        (contributor.percentage / 100) * 400
-                    )
-
                 const isFirst = index === 0
                 const isSecond = index === 1
-                const isThird = index === 2
-
-                const border =
-                    isFirst
-                        ? '#fbbf24'
-                        : '#1e335b'
-
-                const avatarGradient =
-                    isFirst
-                        ? 'url(#goldAvatar)'
-                        : isSecond
-                            ? 'url(#purpleAvatar)'
-                            : 'url(#greenAvatar)'
 
                 const accent =
                     isFirst
@@ -297,7 +305,18 @@ export default async function handler(
                             ? '#c084fc'
                             : '#34d399'
 
-                const avatarIcon =
+                const border =
+                    isFirst
+                        ? '#fbbf24'
+                        : '#1e335b'
+
+                const progressWidth =
+                    Math.max(
+                        6,
+                        contributor.percentage * 3.15
+                    )
+
+                const avatar =
                     contributor.avatar
                         ? `
 <clipPath id="avatarClip${index}">
@@ -310,6 +329,7 @@ export default async function handler(
 
 <image
     href="${escapeXml(contributor.avatar)}"
+    xlink:href="${escapeXml(contributor.avatar)}"
     x="${cardX + 20}"
     y="${cardY + 18}"
     width="56"
@@ -323,27 +343,63 @@ export default async function handler(
     cx="${cardX + 48}"
     cy="${cardY + 46}"
     r="28"
-    fill="${avatarGradient}"
+    fill="${accent}"
+    opacity="0.25"
 />
 
 <circle
     cx="${cardX + 48}"
     cy="${cardY + 38}"
     r="9"
-    fill="#ffffff"
-    opacity="0.9"
+    fill="${accent}"
 />
 
 <path
-    d="M ${cardX + 32} ${cardY + 61}
+    d="M ${cardX + 32} ${cardY + 62}
        Q ${cardX + 48} ${cardY + 45}
-       ${cardX + 64} ${cardY + 61}"
-    fill="#ffffff"
-    opacity="0.9"
+       ${cardX + 64} ${cardY + 62}"
+    fill="${accent}"
 />
 `
 
-                const rankBadge = `
+                const crown =
+                    isFirst
+                        ? `
+<text
+    x="${cardX + 28}"
+    y="${cardY + 9}"
+    font-size="22"
+>
+    👑
+</text>
+`
+                        : ''
+
+                return `
+<rect
+    x="${cardX}"
+    y="${cardY}"
+    width="${cardWidth}"
+    height="${cardHeight}"
+    rx="18"
+    fill="${isFirst ? '#211d13' : '#0e1d37'}"
+    stroke="${border}"
+    stroke-width="${isFirst ? 2 : 1.5}"
+/>
+
+${crown}
+
+<circle
+    cx="${cardX + 48}"
+    cy="${cardY + 46}"
+    r="31"
+    fill="#071326"
+    stroke="${accent}"
+    stroke-width="2"
+/>
+
+${avatar}
+
 <circle
     cx="${cardX + 70}"
     cy="${cardY + 70}"
@@ -362,74 +418,6 @@ export default async function handler(
 >
     ${index + 1}
 </text>
-`
-
-                const crown =
-                    isFirst
-                        ? `
-<text
-    x="${cardX + 28}"
-    y="${cardY + 10}"
-    font-size="23"
->
-    👑
-</text>
-`
-                        : ''
-
-                const label =
-                    isFirst
-                        ? 'TOP CONTRIBUTOR'
-                        : isSecond
-                            ? 'CONTRIBUTOR'
-                            : 'CONTRIBUTOR'
-
-                return `
-<defs>
-    <linearGradient
-        id="cardGradient${index}"
-        x1="0"
-        y1="0"
-        x2="1"
-        y2="1"
-    >
-        <stop
-            offset="0%"
-            stop-color="${isFirst ? '#211d13' : '#101f3c'}"
-        />
-        <stop
-            offset="100%"
-            stop-color="#0b1830"
-        />
-    </linearGradient>
-</defs>
-
-<rect
-    x="${cardX}"
-    y="${cardY}"
-    width="${cardWidth}"
-    height="${cardHeight}"
-    rx="18"
-    fill="url(#cardGradient${index})"
-    stroke="${border}"
-    stroke-width="${isFirst ? 2 : 1.5}"
-/>
-
-${crown}
-
-<circle
-    cx="${cardX + 48}"
-    cy="${cardY + 46}"
-    r="31"
-    fill="#071326"
-    stroke="${accent}"
-    stroke-width="2"
-    opacity="0.95"
-/>
-
-${avatarIcon}
-
-${rankBadge}
 
 <text
     x="${cardX + 92}"
@@ -451,7 +439,7 @@ ${rankBadge}
     letter-spacing="1"
     fill="${accent}"
 >
-    ${label}
+    ${isFirst ? 'TOP CONTRIBUTOR' : 'CONTRIBUTOR'}
 </text>
 
 <rect
@@ -466,7 +454,7 @@ ${rankBadge}
 <rect
     x="${cardX + 92}"
     y="${cardY + 65}"
-    width="${progressWidth * 0.79}"
+    width="${Math.min(315, progressWidth)}"
     height="7"
     rx="4"
     fill="${accent}"
@@ -487,13 +475,6 @@ ${rankBadge}
             })
             .join('')
 
-        const totalContributions =
-            chartData.reduce(
-                (sum: number, contributor: any) =>
-                    sum + contributor.percentage,
-                0
-            )
-
         const svg = `
 <svg
     xmlns="http://www.w3.org/2000/svg"
@@ -507,101 +488,8 @@ ${rankBadge}
 
 <defs>
 
-    <linearGradient
-        id="background"
-        x1="0"
-        y1="0"
-        x2="1"
-        y2="1"
-    >
-        <stop
-            offset="0%"
-            stop-color="#07142d"
-        />
-        <stop
-            offset="48%"
-            stop-color="#0b1b38"
-        />
-        <stop
-            offset="100%"
-            stop-color="#10184a"
-        />
-    </linearGradient>
-
-    <radialGradient
-        id="glow"
-        cx="50%"
-        cy="50%"
-        r="50%"
-    >
-        <stop
-            offset="0%"
-            stop-color="#2563eb"
-            stop-opacity="0.28"
-        />
-        <stop
-            offset="100%"
-            stop-color="#2563eb"
-            stop-opacity="0"
-        />
-    </radialGradient>
-
-    <linearGradient
-        id="goldAvatar"
-        x1="0"
-        y1="0"
-        x2="1"
-        y2="1"
-    >
-        <stop
-            offset="0%"
-            stop-color="#fde68a"
-        />
-        <stop
-            offset="100%"
-            stop-color="#f59e0b"
-        />
-    </linearGradient>
-
-    <linearGradient
-        id="purpleAvatar"
-        x1="0"
-        y1="0"
-        x2="1"
-        y2="1"
-    >
-        <stop
-            offset="0%"
-            stop-color="#e9d5ff"
-        />
-        <stop
-            offset="100%"
-            stop-color="#9333ea"
-        />
-    </linearGradient>
-
-    <linearGradient
-        id="greenAvatar"
-        x1="0"
-        y1="0"
-        x2="1"
-        y2="1"
-    >
-        <stop
-            offset="0%"
-            stop-color="#a7f3d0"
-        />
-        <stop
-            offset="100%"
-            stop-color="#059669"
-        />
-    </linearGradient>
-
-    ${chartData
-        .map(
-            (_: any, index: number) => `
 <linearGradient
-    id="chartGradient${index}"
+    id="background"
     x1="0"
     y1="0"
     x2="1"
@@ -609,50 +497,51 @@ ${rankBadge}
 >
     <stop
         offset="0%"
-        stop-color="${chartColors[index % chartColors.length]}"
+        stop-color="#07142d"
+    />
+    <stop
+        offset="50%"
+        stop-color="#0b1b38"
     />
     <stop
         offset="100%"
-        stop-color="${chartColors[index % chartColors.length]}"
-        stop-opacity="0.65"
+        stop-color="#10184a"
     />
 </linearGradient>
-`
-        )
-        .join('')}
 
-    <filter
-        id="shadow"
-        x="-30%"
-        y="-30%"
-        width="160%"
-        height="160%"
-    >
-        <feDropShadow
-            dx="0"
-            dy="8"
-            stdDeviation="12"
-            flood-color="#000000"
-            flood-opacity="0.35"
-        />
-    </filter>
+<radialGradient
+    id="glow"
+    cx="50%"
+    cy="50%"
+    r="50%"
+>
+    <stop
+        offset="0%"
+        stop-color="#2563eb"
+        stop-opacity="0.28"
+    />
+    <stop
+        offset="100%"
+        stop-color="#2563eb"
+        stop-opacity="0"
+    />
+</radialGradient>
 
-    <filter
-        id="softGlow"
-        x="-50%"
-        y="-50%"
-        width="200%"
-        height="200%"
-    >
-        <feGaussianBlur
-            stdDeviation="8"
-            result="blur"
-        />
-        <feMerge>
-            <feMergeNode in="blur"/>
-            <feMergeNode in="SourceGraphic"/>
-        </feMerge>
-    </filter>
+<filter
+    id="shadow"
+    x="-30%"
+    y="-30%"
+    width="160%"
+    height="160%"
+>
+    <feDropShadow
+        dx="0"
+        dy="8"
+        stdDeviation="12"
+        flood-color="#000000"
+        flood-opacity="0.35"
+    />
+</filter>
 
 </defs>
 
@@ -666,7 +555,7 @@ ${rankBadge}
 <circle
     cx="80"
     cy="120"
-    r="180"
+    r="190"
     fill="url(#glow)"
 />
 
@@ -692,7 +581,6 @@ ${rankBadge}
     cy="54"
     r="22"
     fill="#f8fafc"
-    opacity="0.95"
 />
 
 <path
@@ -790,7 +678,7 @@ ${slices}
     font-weight="700"
     fill="#f8fafc"
 >
-    ${totalContributions.toFixed(0)}%
+    100%
 </text>
 
 <text
@@ -846,17 +734,6 @@ ${cards}
     GITHUB CONTRIBUTORS
 </text>
 
-<path
-    d="M820 500 l6 12 l12 6 l-12 6 l-6 12 l-6-12 l-12-6 l12-6 Z"
-    fill="#38bdf8"
-    filter="url(#softGlow)"
-/>
-
-<path
-    d="M785 510 l4 8 l8 4 l-8 4 l-4 8 l-4-8 l-8-4 l8-4 Z"
-    fill="#a855f7"
-/>
-
 </svg>
 `
 
@@ -873,10 +750,16 @@ ${cards}
         res.status(200).send(svg)
 
     } catch (error) {
-        console.error(error)
+        console.error(
+            'Contributor SVG Error:',
+            error instanceof Error
+                ? error.stack
+                : error
+        )
 
         res
             .status(500)
             .send('Failed to fetch contributor data')
     }
 }
+```
